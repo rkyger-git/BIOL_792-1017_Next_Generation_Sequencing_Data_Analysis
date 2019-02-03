@@ -1,4 +1,4 @@
-#!/use/bin/bash
+#!/usr/bin/bash
 
 #hisat-script-1
 
