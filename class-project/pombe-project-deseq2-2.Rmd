@@ -1,0 +1,145 @@
+---
+title: "pombe project RNA-seq"
+output: html_notebook
+---
+
+
+```{r}
+#load tidyverse
+library(tidyverse)
+
+#load DEseq2
+library(DESeq2)
+
+#load pheatmap
+library(pheatmap)
+
+#load colorbrewer
+library(RColorBrewer)
+
+```
+
+```{r}
+#load metadata
+metadata <- read.csv("pombe-metadata2.csv", header=TRUE, row.names = "X")
+
+#load gene count matrix
+genecount <- read.csv("gene_count_matrix-2.csv", header=TRUE, row.names = "gene_id")
+
+```
+
+```{r}
+#test for row and column match
+match(rownames(metadata), colnames(genecount))
+
+all(rownames(metadata) %in% colnames(genecount))
+
+all(rownames(metadata) == colnames(genecount))
+
+```
+
+```{r}
+#Create DESeq2 object
+dds_pombe <- DESeqDataSetFromMatrix(countData = genecount, colData=metadata, design = ~ condition)
+```
+
+```{r}
+#determine size facotrs and save back to object
+dds_pombe <- estimateSizeFactors(dds_pombe)
+```
+
+```{r}
+#extract normalized counts
+dds_pombe_normalized_counts <- counts(dds_pombe, normalized = TRUE)
+```
+
+```{r}
+#transform normalized counts
+vsd_pombe <- vst(dds_pombe, blind = TRUE)
+
+#extract matrix of normalized counts
+vsd_mat_pombe <- assay(vsd_pombe)
+
+#compute correclation values between samples
+vsd_cor_pombe <- cor(vsd_mat_pombe)
+
+#create heatmap
+pheatmap(vsd_cor_pombe, annotation = select(metadata, condition))
+
+```
+
+```{r}
+#creat PCA plot
+plotPCA(vsd_pombe, intgroup = "condition")
+
+```
+
+```{r}
+#run DE analysis
+dds_pombe_DE <- DESeq(dds_pombe)
+
+#plot dispersions
+plotDispEsts(dds_pombe_DE)
+```
+
+```{r}
+#extract the results of the differential expression analysis
+pombe_DE_results <- results(dds_pombe_DE, contrast = c("condition", "DTT", "untreated"), alpha = 0.01)
+
+```
+
+```{r}
+#shrink log2 fold change estimates to incease accuracy
+pombe_DE_results_shrunk <- lfcShrink(dds_pombe_DE, contrast = c("condition", "DTT", "untreated"), res=pombe_DE_results)
+```
+
+```{r}
+#create data frame of data
+pombe_DE_results_frame <- data.frame(pombe_DE_results_shrunk)
+
+#create subesetted data frame of data
+pombe_DE_results_frame_det <-subset(pombe_DE_results_frame, padj<0.01)
+
+```
+
+```{r}
+plotMA(pombe_DE_results_shrunk)
+```
+
+```{r}
+#create data frame with logical vector with respect to adjp cut-off
+p_DE_frame_log <- data.frame(pombe_DE_results_shrunk) %>% mutate (threshold = padj < 0.01)
+```
+
+```{r}
+#create vocano plot
+ggplot(data = p_DE_frame_log, aes(x=log2FoldChange, y=-log10(padj), color=threshold)) +
+  geom_point() +
+  theme(plot.title = element_text(size = rel(1.5), hjust = 0.5), 
+              axis.title = element_text(size = rel(1.25))) +
+  geom_abline(x=0, slope=10000)
+
+```
+
+```{r}
+#subset normalized counts to detected DE genes
+p_DE_data_for_heatmap <- dds_pombe_normalized_counts[rownames(pombe_DE_results_frame_det),]
+
+#select heatmap colors
+heat_colors <- brewer.pal(n = 6, name = "YlOrRd")
+
+#plot heatmap
+pheatmap(p_DE_data_for_heatmap, color = heat_colors, cluster_rows = TRUE, show_rownames = FALSE, annotation = select(metadata, condition), scale = "row")
+
+```
+
+```{r}
+#export dataframe with genes of interest with respect to djp cut-off to a csv file
+write.csv(pombe_DE_results_frame_det, file="pombe_DE_results_frame_det.csv")
+
+#export full data frame with logical vector with respect to adjp cut-off to a csv file
+write.csv(p_DE_frame_log, file="p_DE_frame_log.csv")
+
+```
+
+
