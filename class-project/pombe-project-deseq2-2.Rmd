@@ -85,12 +85,13 @@ plotDispEsts(dds_pombe_DE)
 ```{r}
 #extract the results of the differential expression analysis
 pombe_DE_results <- results(dds_pombe_DE, contrast = c("condition", "DTT", "untreated"), alpha = 0.01)
-
+head(pombe_DE_results)
 ```
 
 ```{r}
 #shrink log2 fold change estimates to incease accuracy
 pombe_DE_results_shrunk <- lfcShrink(dds_pombe_DE, contrast = c("condition", "DTT", "untreated"), res=pombe_DE_results)
+head(pombe_DE_results_shrunk)
 ```
 
 ```{r}
